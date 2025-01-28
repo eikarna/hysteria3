@@ -90,9 +90,14 @@ type clientConfigObfsSalamander struct {
 	Password string `mapstructure:"password"`
 }
 
+type clientConfigObfsChameleon struct {
+	Password string `mapstructure:"password"`
+}
+
 type clientConfigObfs struct {
 	Type       string                     `mapstructure:"type"`
 	Salamander clientConfigObfsSalamander `mapstructure:"salamander"`
+	Chameleon clientConfigObfsChameleon `mapstructure:"chameleon"`
 }
 
 type clientConfigTLS struct {
@@ -249,6 +254,11 @@ func (c *clientConfig) fillConnFactory(hyConfig *client.Config) error {
 		if err != nil {
 			return configError{Field: "obfs.salamander.password", Err: err}
 		}
+	case "chameleon":
+		ob, err = obfs.NewChameleonObfuscator([]byte(c.Obfs.Chameleon.Password))
+		if err != nil {
+			return configError{Field: "obfs.chameleon.password", Err: err}
+		}
 	default:
 		return configError{Field: "obfs.type", Err: errors.New("unsupported obfuscation type")}
 	}
@@ -349,6 +359,9 @@ func (c *clientConfig) URI() string {
 	case "salamander":
 		q.Set("obfs", "salamander")
 		q.Set("obfs-password", c.Obfs.Salamander.Password)
+	case "chameleon":
+		q.Set("obfs", "chameleon")
+		q.Set("obfs-password", c.Obfs.Chameleon.Password)
 	}
 	if c.TLS.SNI != "" {
 		q.Set("sni", c.TLS.SNI)
@@ -406,6 +419,10 @@ func (c *clientConfig) parseURI() bool {
 		switch strings.ToLower(obfsType) {
 		case "salamander":
 			c.Obfs.Salamander.Password = q.Get("obfs-password")
+			break
+		case "chameleon":
+			c.Obfs.Chameleon.Password = q.Get("obfs-password")
+			break
 		}
 	}
 	if sni := q.Get("sni"); sni != "" {

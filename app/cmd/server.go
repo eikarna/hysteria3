@@ -73,13 +73,19 @@ type serverConfig struct {
 	Masquerade            serverConfigMasquerade      `mapstructure:"masquerade"`
 }
 
+
 type serverConfigObfsSalamander struct {
+	Password string `mapstructure:"password"`
+}
+
+type serverConfigObfsChameleon struct {
 	Password string `mapstructure:"password"`
 }
 
 type serverConfigObfs struct {
 	Type       string                     `mapstructure:"type"`
 	Salamander serverConfigObfsSalamander `mapstructure:"salamander"`
+	Chameleon serverConfigObfsChameleon `mapstructure:"chameleon"`
 }
 
 type serverConfigTLS struct {
@@ -278,6 +284,13 @@ func (c *serverConfig) fillConn(hyConfig *server.Config) error {
 		ob, err := obfs.NewSalamanderObfuscator([]byte(c.Obfs.Salamander.Password))
 		if err != nil {
 			return configError{Field: "obfs.salamander.password", Err: err}
+		}
+		hyConfig.Conn = obfs.WrapPacketConn(conn, ob)
+		return nil
+	case "chameleon":
+		ob, err := obfs.NewChameleonObfuscator([]byte(c.Obfs.Chameleon.Password))
+		if err != nil {
+			return configError{Field: "obfs.chameleon.password", Err: err}
 		}
 		hyConfig.Conn = obfs.WrapPacketConn(conn, ob)
 		return nil
