@@ -12,14 +12,11 @@ import (
 const (
 	packetQueueSize = 1024
 	udpBufferSize   = 2048 // QUIC packets are at most 1500 bytes long, so 2k should be more than enough
-
-	defaultHopInterval = 30 * time.Second
 )
 
 type udpHopPacketConn struct {
 	Addr          net.Addr
 	Addrs         []net.Addr
-	HopInterval   time.Duration
 	ListenUDPFunc ListenUDPFunc
 
 	connMutex   sync.RWMutex
@@ -46,12 +43,7 @@ type udpPacket struct {
 
 type ListenUDPFunc = func() (net.PacketConn, error)
 
-func NewUDPHopPacketConn(addr *UDPHopAddr, hopInterval time.Duration, listenUDPFunc ListenUDPFunc) (net.PacketConn, error) {
-	if hopInterval == 0 {
-		hopInterval = defaultHopInterval
-	} else if hopInterval < 5*time.Second {
-		return nil, errors.New("hop interval must be at least 5 seconds")
-	}
+func NewUDPHopPacketConn(addr *UDPHopAddr, listenUDPFunc ListenUDPFunc) (net.PacketConn, error) {
 	if listenUDPFunc == nil {
 		listenUDPFunc = func() (net.PacketConn, error) {
 			return net.ListenUDP("udp", nil)
@@ -68,7 +60,6 @@ func NewUDPHopPacketConn(addr *UDPHopAddr, hopInterval time.Duration, listenUDPF
 	hConn := &udpHopPacketConn{
 		Addr:          addr,
 		Addrs:         addrs,
-		HopInterval:   hopInterval,
 		ListenUDPFunc: listenUDPFunc,
 		prevConn:      nil,
 		currentConn:   curConn,
@@ -82,7 +73,6 @@ func NewUDPHopPacketConn(addr *UDPHopAddr, hopInterval time.Duration, listenUDPF
 		},
 	}
 	go hConn.recvLoop(curConn)
-	go hConn.hopLoop()
 	return hConn, nil
 }
 
@@ -107,19 +97,6 @@ func (u *udpHopPacketConn) recvLoop(conn net.PacketConn) {
 		default:
 			// Queue is full, drop the packet
 			u.bufPool.Put(buf)
-		}
-	}
-}
-
-func (u *udpHopPacketConn) hopLoop() {
-	ticker := time.NewTicker(u.HopInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			u.hop()
-		case <-u.closeChan:
-			return
 		}
 	}
 }
@@ -171,6 +148,7 @@ func (u *udpHopPacketConn) ReadFrom(b []byte) (n int, addr net.Addr, err error) 
 			// the server or not due to performance reasons.
 			n := copy(b, p.Buf[:p.N])
 			u.bufPool.Put(p.Buf)
+			// go u.hop()
 			return n, u.Addr, nil
 		case <-u.closeChan:
 			return 0, nil, net.ErrClosed
@@ -186,6 +164,7 @@ func (u *udpHopPacketConn) WriteTo(b []byte, addr net.Addr) (n int, err error) {
 	}
 	// Skip the check for now, always write to the server,
 	// for the same reason as in ReadFrom.
+	go u.hop()
 	return u.currentConn.WriteTo(b, u.Addrs[u.addrIndex])
 }
 

@@ -77,13 +77,8 @@ type clientConfig struct {
 	TUN           *tunConfig            `mapstructure:"tun"`
 }
 
-type clientConfigTransportUDP struct {
-	HopInterval time.Duration `mapstructure:"hopInterval"`
-}
-
 type clientConfigTransport struct {
-	Type string                   `mapstructure:"type"`
-	UDP  clientConfigTransportUDP `mapstructure:"udp"`
+	Type string `mapstructure:"type"`
 }
 
 type clientConfigObfsSalamander struct {
@@ -97,7 +92,7 @@ type clientConfigObfsChameleon struct {
 type clientConfigObfs struct {
 	Type       string                     `mapstructure:"type"`
 	Salamander clientConfigObfsSalamander `mapstructure:"salamander"`
-	Chameleon clientConfigObfsChameleon `mapstructure:"chameleon"`
+	Chameleon  clientConfigObfsChameleon  `mapstructure:"chameleon"`
 }
 
 type clientConfigTLS struct {
@@ -233,7 +228,7 @@ func (c *clientConfig) fillConnFactory(hyConfig *client.Config) error {
 		if hyConfig.ServerAddr.Network() == "udphop" {
 			hopAddr := hyConfig.ServerAddr.(*udphop.UDPHopAddr)
 			newFunc = func(addr net.Addr) (net.PacketConn, error) {
-				return udphop.NewUDPHopPacketConn(hopAddr, c.Transport.UDP.HopInterval, so.ListenUDP)
+				return udphop.NewUDPHopPacketConn(hopAddr, so.ListenUDP)
 			}
 		} else {
 			newFunc = func(addr net.Addr) (net.PacketConn, error) {
